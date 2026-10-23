@@ -76,7 +76,7 @@ class Bridge:
         self.next_id = 0
         self.info = self.request(
             "init", identifier=cfg["identifier"], command=cmd[0], args=cmd[1:], tools=cfg.get("tools"), env=_secret_env(cfg),
-            schemaPath=str(STATE / server / "schema.json"), outputCap=OUTPUT_CAP,
+            schemaPath=str(STATE / server / "schema.json"), outputCap=OUTPUT_CAP, budget=cfg.get("stub_budget"),
         )
 
     def request(self, op: str, **kw):
@@ -243,7 +243,10 @@ def main() -> None:
     ap.add_argument("--reps", type=int, default=1)
     ap.add_argument("--tasks", default="*", help="comma-separated glob patterns over task ids")
     ap.add_argument("--workers", type=int, default=4)
+    ap.add_argument("--max-cost", type=float, default=None, help="stop starting episodes once this many USD are spent")
     args = ap.parse_args()
+    if args.max_cost is not None and args.max_cost <= 0:
+        ap.error("--max-cost must be positive")
 
     pats = args.tasks.split(",")
     tasks = [t for t in load_tasks() if any(fnmatch.fnmatch(t["id"], p) for p in pats)]
@@ -258,7 +261,8 @@ def main() -> None:
             e = json.loads(line)
             if not (e.get("error") or "").startswith("api:"):
                 done.add((e["model"], e["task"], e["condition"], e["rep"]))
-    jobs = [(m, t, c, r) for m in models for t in tasks for c in conds for r in range(args.reps) if (m, t["id"], c, r) not in done]
+    # Rep-major order: a run stopped by --max-cost still covers every task and condition evenly.
+    jobs = [(m, t, c, r) for r in range(args.reps) for m in models for t in tasks for c in conds if (m, t["id"], c, r) not in done]
     print(f"{len(jobs)} episodes to run ({len(done)} already done) -> {out_file}", file=sys.stderr)
 
     client = anthropic.Anthropic(max_retries=6)
@@ -288,12 +292,22 @@ def main() -> None:
             b.close()
         meta_path.write_text(json.dumps(meta, indent=2))
 
+    spend = {"usd": 0.0, "max_ep": 0.0}
+
     def work(job):
         model, task, cond, rep = job
+        if args.max_cost is not None:
+            with lock:
+                # Leave room for the episodes already in flight.
+                if spend["usd"] + spend["max_ep"] * args.workers >= args.max_cost:
+                    return None
         b = bridge_for(task["server"])
         ep = run_episode(client, model, args.effort, task, cond, b, servers()[task["server"]]["identifier"])
         ep["rep"] = rep
         with lock:
+            cost = episode_cost(model, ep["usage"])
+            spend["usd"] += cost
+            spend["max_ep"] = max(spend["max_ep"], cost)
             with out_file.open("a") as f:
                 f.write(json.dumps(ep, default=str) + "\n")
         return ep
@@ -302,12 +316,25 @@ def main() -> None:
     with ThreadPoolExecutor(max_workers=args.workers) as pool:
         for fut in as_completed([pool.submit(work, j) for j in jobs]):
             ep = fut.result()
+            if ep is None:
+                continue
             n += 1
             mark = "ok " if ep["success"] else "BAD"
             print(f"[{n}/{len(jobs)}] {mark} {ep['model']} {ep['condition']} {ep['task']} rt={ep['round_trips']} tok={ep['total_tokens']}"
                   f"{' err=' + ep['error'] if ep['error'] else ''}", file=sys.stderr)
+    print(f"spent ${spend['usd']:.2f} on {n} episodes", file=sys.stderr)
     for b in all_bridges:
         b.close()
+
+
+# USD per million tokens (input, output); cache reads bill at 0.1x input, cache writes at 1.25x.
+PRICES = {"claude-opus-5-5": (4.0, 20.0), "claude-haiku-5-5": (0.10, 0.50)}
+
+
+def episode_cost(model: str, usage: dict) -> float:
+    inp, out = PRICES.get(model, (4.0, 20.0))
+    return (usage.get("input", 0) * inp + usage.get("output", 0) * out
+            + usage.get("cache_read", 0) * inp * 0.1 + usage.get("cache_write", 0) * inp * 1.25) / 1e6
 
 
 if __name__ == "__main__":

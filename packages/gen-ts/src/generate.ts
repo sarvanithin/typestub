@@ -1,5 +1,6 @@
 import { camel, isSingleItemTool, paginationPlan, pascal, toolNoun, type JsonSchema, type ServerSchema, type ToolSchema } from '@typestub/infer';
-import { docBlock, propKey, TypeRegistry, type EmitOptions } from './emit.js';
+import { fitToBudget } from './budget.js';
+import { COMPACT_LEGEND, docBlock, propKey, TypeRegistry, type EmitOptions } from './emit.js';
 
 export interface GenerateOptions {
   /** Include example values in doc comments (default true). */
@@ -10,7 +11,17 @@ export interface GenerateOptions {
   tools?: string[];
   /** Declare the runtime module's closeAll() (default true; off for prompt-only stubs). */
   runtimeDecls?: boolean;
+  /**
+   * Compact output (one line per interface, short presence tags, folded link fields, no examples).
+   * `'auto'` (default) switches to compact when the typed stub would add more than `budget` tokens.
+   */
+  compact?: boolean | 'auto';
+  /** Token budget for the output types that `compact: 'auto'` aims for (default 3000). */
+  budget?: number;
 }
+
+/** Rough token estimate for TypeScript declarations (measured ~2.3 chars/token on Claude). */
+export const estimateTokens = (text: string) => Math.ceil(text.length / 2.3);
 
 export interface GeneratedTs {
   /** Contents of `<server>.d.ts`. */
@@ -72,8 +83,8 @@ const stripAnnotations = (s: JsonSchema): JsonSchema => {
   return rest;
 };
 
-function errorDoc(t: ToolSchema): string | undefined {
-  if (!t.errorSamples) return undefined;
+function errorDoc(t: ToolSchema, compact: boolean): string | undefined {
+  if (!t.errorSamples || compact) return undefined;
   const ex = t.error?.['x-examples']?.[0];
   const sample = typeof ex === 'string' && !/redacted[:.]/.test(ex) ? `, e.g. ${JSON.stringify(ex.slice(0, 60))}` : '';
   return `Throws ToolError when the tool reports an error (${t.errorSamples} seen while recording${sample}).`;
@@ -81,7 +92,23 @@ function errorDoc(t: ToolSchema): string | undefined {
 
 /** Generate the `.d.ts` stub and the compact index for one server. */
 export function generateTs(schema: ServerSchema, opts: GenerateOptions = {}): GeneratedTs {
-  const emitOpts: EmitOptions = { examples: opts.examples ?? true };
+  const mode = opts.compact ?? 'auto';
+  if (mode === 'auto') {
+    if (opts.untyped) return render(schema, opts, false);
+    const full = render(schema, opts, false);
+    const base = render(schema, { ...opts, untyped: true }, false);
+    const budget = opts.budget ?? 3000;
+    const overhead = (g: GeneratedTs) => estimateTokens(g.dts) - estimateTokens(base.dts);
+    if (overhead(full) <= budget) return full;
+    // Compact notation first; then drop the lowest-value fields until the stub fits.
+    const fitted = fitToBudget(schema, budget, (s) => overhead(render(s, opts, true)));
+    return render(fitted, opts, true);
+  }
+  return render(schema, opts, mode);
+}
+
+function render(schema: ServerSchema, opts: GenerateOptions, compact: boolean): GeneratedTs {
+  const emitOpts: EmitOptions = { examples: !compact && (opts.examples ?? true), compact };
   const reg = new TypeRegistry(emitOpts);
   const identifier = camel(schema.server);
   const iface = `${pascal(schema.server)}Server`;
@@ -107,13 +134,23 @@ export function generateTs(schema: ServerSchema, opts: GenerateOptions = {}): Ge
       if (plan) {
         doc.push(`Paginated: pass \`${plan.nextKey}\` back as \`${plan.cursorParam}\`${plan.hasMoreKey ? ` while \`${plan.hasMoreKey}\` is true` : ' (null on the last page)'}, or use ${fn}All().`);
       }
-      const err = errorDoc(t);
+      const err = errorDoc(t, compact);
       if (err) doc.push(err);
-      if (t.lowConfidence) doc.push(`Low confidence: inferred from only ${t.samples} sample(s); fields may be missing.`);
-      else if (t.confidence < 0.9) doc.push(`Confidence ${t.confidence.toFixed(2)}: some fields change type between responses.`);
+      if (t.lowConfidence && !compact) doc.push(`Low confidence: inferred from only ${t.samples} sample(s); fields may be missing.`);
+      else if (t.confidence < 0.9 && !compact) doc.push(`Confidence ${t.confidence.toFixed(2)}: some fields change type between responses.`);
     }
-    members += docBlock(doc, '  ');
-    if (t.variants && !opts.untyped) {
+    members += docBlock(doc, '  ', compact);
+    if (t.variants && !opts.untyped && compact) {
+      // One generic signature over a per-value results map: far fewer tokens than overloads.
+      const map = `${pascal(t.tool)}Results`;
+      const entries = t.variants
+        .map((v) => [v.value, reg.typeOf(v.output, `${pascal(t.tool)}${pascal(v.value)}`, variantHint(t, v.value))])
+        .filter(([, vt]) => !/^unknown(\[\])?$/.test(vt));
+      reg.argDecls.unshift(`export interface ${map} { ${entries.map(([k, vt]) => `${propKey(k)}: ${vt};`).join(' ')} }\n`);
+      const arg = t.variants[0].arg;
+      members += `  ${fn}<M extends ${args.decl}['${arg}']>(args: ${args.decl} & { ${propKey(arg)}: M }): Promise<By<${map}, M>>;\n`;
+      ret = t.variants.map((v) => `${v.arg}=${v.value}`).join(' | ');
+    } else if (t.variants && !opts.untyped) {
       // One overload per observed value of the selecting argument, then a catch-all for unseen values.
       for (const v of t.variants) {
         const vt = reg.typeOf(v.output, `${pascal(t.tool)}${pascal(v.value)}`, variantHint(t, v.value));
@@ -127,7 +164,7 @@ export function generateTs(schema: ServerSchema, opts: GenerateOptions = {}): Ge
     }
     if (plan && !opts.untyped) {
       const allArgs = `Omit<${args.decl}, '${plan.cursorParam}'>`;
-      members += `  /** Fetches every page of ${fn}() and returns all \`${plan.itemsKey}\` concatenated. */\n`;
+      if (!compact) members += `  /** Fetches every page of ${fn}() and returns all \`${plan.itemsKey}\` concatenated. */\n`;
       members += `  ${fn}All(args${args.optional ? '?' : ''}: ${allArgs}): Promise<${itemType}[]>;\n`;
     }
     const conf = t.lowConfidence ? `low confidence (${t.samples} samples)` : `confidence ${t.confidence.toFixed(2)}`;
@@ -139,12 +176,16 @@ export function generateTs(schema: ServerSchema, opts: GenerateOptions = {}): Ge
 
   const header = [
     `// Generated by TypeStub. Do not edit.`,
-    `// server: ${schema.server}${schema.serverVersion ? `@${schema.serverVersion}` : ''} · schema ${schema.schemaHash} · ${tools.length} tools${opts.untyped ? ' · untyped' : ''}`,
+    `// server: ${schema.server}${schema.serverVersion ? `@${schema.serverVersion}` : ''} · schema ${schema.schemaHash} · ${tools.length} tools${opts.untyped ? ' · untyped' : ''}${compact ? ' · compact' : ''}`,
+    ...(compact ? [COMPACT_LEGEND.trimEnd()] : []),
     '',
   ].join('\n');
   const toolError = opts.untyped
     ? ''
-    : `/** Thrown when a tool returns isError. \`message\` is the tool's error text. */\nexport declare class ToolError extends Error {\n  tool: string;\n  payload: unknown;\n}\n`;
+    : compact
+      ? `export declare class ToolError extends Error { tool: string; payload: unknown; } // thrown when a tool reports an error\n` +
+        (tools.some((t) => t.variants) ? `type By<R, M> = M extends keyof R ? R[M] : unknown;\n` : '')
+      : `/** Thrown when a tool returns isError. \`message\` is the tool's error text. */\nexport declare class ToolError extends Error {\n  tool: string;\n  payload: unknown;\n}\n`;
   const runtime = opts.runtimeDecls === false ? '' : `/** Close server connections opened by this module. */\nexport declare function closeAll(): Promise<void>;\n`;
   const dts = reg.applyRenames([
     header,

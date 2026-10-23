@@ -92,6 +92,10 @@ export interface GenOptions extends CommonOptions {
   lang?: 'ts' | 'py' | 'both';
   untyped?: boolean;
   examples?: boolean;
+  /** Token budget for the output types (compact + pruned above it); default 3000. */
+  budget?: number;
+  /** Never compact or prune. */
+  full?: boolean;
 }
 
 /** Write `<out>/<server>.d.ts`, `.js` runtime, `.index.md`, `.schema.json`, `.py`, and the aggregate index. */
@@ -111,13 +115,14 @@ export function gen(name: string, o: GenOptions = {}): string[] {
   };
   write(`${base}.schema.json`, JSON.stringify(schema, null, 2) + '\n');
   if (lang === 'ts' || lang === 'both') {
-    const ts = generateTs(schema, { untyped: o.untyped, examples: o.examples });
+    if (o.budget !== undefined && !(Number.isInteger(o.budget) && o.budget > 0)) throw new Error(`--budget must be a positive integer`);
+    const ts = generateTs(schema, { untyped: o.untyped, examples: o.examples, budget: o.budget, compact: o.full ? false : 'auto' });
     write(`${base}.d.ts`, ts.dts);
     write(`${base}.index.md`, ts.index);
     write(`${base}.js`, runtimeModule(base, ts.identifier));
     writeAggregate(out);
   }
-  if (lang === 'py' || lang === 'both') write(`${base.replace(/[^A-Za-z0-9_]/g, '_')}.py`, generatePy(schema, { untyped: o.untyped, examples: o.examples }).source);
+  if (lang === 'py' || lang === 'both') write(`${base.replace(/[^A-Za-z0-9_]/g, '_')}.py`, generatePy(schema, { untyped: o.untyped, examples: o.examples, budget: o.budget, compact: o.full ? false : 'auto' }).source);
   (o.log ?? noop)(`wrote ${written.length} files to ${out}`);
   return written;
 }

@@ -50,12 +50,16 @@ program
   .option('--out <dir>', 'output directory', 'stubs')
   .option('--untyped', 'inputs only, unknown outputs (baseline)')
   .option('--no-examples', 'omit example values from doc comments')
+  .option('--budget <tokens>', 'token budget for output types; larger stubs are compacted and pruned (default 3000)', (v) => Number(v))
+  .option('--full', 'never compact or prune the stub')
   .action((name: string, o) => void gen(name, { ...common(), ...o }));
 
 upstream(probeOpts(program.command('init <name>').description('probe + infer + gen in one step')))
   .addOption(lang())
   .option('--out <dir>', 'output directory', 'stubs')
   .option('--no-examples', 'omit example values from doc comments')
+  .option('--budget <tokens>', 'token budget for output types; larger stubs are compacted and pruned (default 3000)', (v) => Number(v))
+  .option('--full', 'never compact or prune the stub')
   .action(async (name: string, command: string[], o) => {
     await init(name, { ...common(), ...o, command });
   });

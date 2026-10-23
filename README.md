@@ -52,7 +52,7 @@ Commands (`--root` sets the state directory, default `.typestub/`):
 | `typestub probe <name> -- <cmd...>` | call read-only tools with arguments from `probe.yaml` plus auto-generated ones (ids chained from earlier responses, enum values, page sizes, cursors) |
 | `typestub record <name> -- <cmd...>` | run as a recording MCP proxy on stdio: point any client at it to capture live traffic (passive mode) |
 | `typestub infer <name>` | merge samples into `schema.json` (JSON Schema 2020-12 + `x-` extensions) |
-| `typestub gen <name> --lang ts\|py\|both [--untyped]` | write stubs, runtime module, compact index |
+| `typestub gen <name> --lang ts\|py\|both [--untyped] [--budget N] [--full]` | write stubs, runtime module, compact index |
 | `typestub init <name> -- <cmd...>` | probe + infer + gen |
 | `typestub watch <name> [--once]` | fold safe drift back in and regenerate; write `drift-report.md` for breaking drift |
 
@@ -88,6 +88,23 @@ confidence score (share of fields whose type never changed, weighted by presence
 On the bundled messy mock server, field-level accuracy against a hand-written reference schema is **99.4%**
 (167/168 fields), enforced as a test at ≥95%.
 
+### Stub budget
+
+A stub is resent on every model turn, so a big API's stub can cost more than it saves. When the typed
+declarations would add more than `--budget` tokens (default 3,000), the TypeScript generator:
+
+1. switches to compact notation: one line per interface, `/*84%*/` presence tags, and `*_url` link fields
+   folded into one `[link: \`${string}url\`]: Url` signature;
+2. collapses argument-selected overloads into one generic signature over a results map;
+3. drops the lowest-value fields until the stub fits. Each field is scored per token it costs: shallow,
+   identifying, and record-array fields score high; deep, near-absent (<10%), link-like fields and fields
+   of low-confidence tools score low. Pagination keys, union tags, and identity fields (`id`, `number`,
+   `name`, …) near the top are never dropped. An object that lost fields gets `[more: string]: unknown`,
+   so the omitted keys stay accessible.
+
+`--full` turns this off. Python stubs use the same pruning, with `# N%` comments and a
+`# +N less-used fields omitted` line in pruned TypedDicts (GitHub: about 6.6k → 2.75k tokens).
+
 ## Runtime shim
 
 `@typestub/shim` turns a schema into callable functions over any `callTool(name, args)`:
@@ -118,7 +135,7 @@ bench/             tasks + ground truth, checkers, runners for conditions A/B/C/
 examples/          a typed script against the mock
 ```
 
-`npm test` runs 56 tests: unit tests, probe→infer accuracy, generated stubs type-checked with `tsc`,
+`npm test` runs 60 tests: unit tests, probe→infer accuracy, generated stubs type-checked with `tsc`,
 generated Python imported and its type hints resolved, and the CLI init + drift loop over stdio.
 
 ## Benchmark
@@ -145,7 +162,7 @@ python data/make_fs.py && python data/make_sqlite.py && python tasks/build.py   
 python runners/build_stubs.py                     # probe pool -> .typestub/<server>/schema.json
 python runners/oracle.py                          # 40/40 reference solutions
 echo 'ANTHROPIC_API_KEY=...' > .env               # gitignored
-python runners/harness.py --run-id v0 --models claude-haiku-5-5,claude-opus-5-5 --conditions A,B,C,L --reps 5
+python runners/harness.py --run-id v0 --models claude-haiku-5-5,claude-opus-5-5 --conditions A,B,C,L --reps 5  # --max-cost USD caps spend
 python report/report.py v0                        # results/v0/report.md + charts
 ```
 
@@ -180,8 +197,44 @@ What this says, using the decision rule from the design doc:
 - **v0 criteria met: none overall.** The −30% cost target and the +20 pt reliability target are met only on the
   messy mock.
 
-Opus 5.5 coverage is partial: only the 144 filesystem episodes finished, all correct, before the API account ran
-out of credits. Rerunning the same harness command resumes the rest.
+### Rerun: GitHub with a budgeted stub (run `v1-github`, Haiku, 10 tasks × 4 conditions × 5 reps)
+
+The GitHub typed stub was cut from 5,560 to **2,318** extra prompt tokens (−58%, budget 2,500) and the
+GitHub tasks were rerun. Every field the tasks read survived the pruning.
+
+| GitHub, C vs B | v0 (full stub) | v1 (budgeted stub) |
+|---|---|---|
+| tokens / completed task | +49.2% [19.3, 92.8] | **+22.7%** [5.4, 37.9] |
+| task success (C) | 92% | **98%** (B: 98%) |
+| first-try success | +8 pts | +4 pts |
+| round trips | −0.76 | −0.20 |
+
+With these GitHub numbers swapped into the Haiku results, typed vs untyped overall is **−10.5%** tokens
+[−23.5, 2.4] (was −3.3%) and +15 pts first-try success, with no loss in task success. GitHub is still a net cost:
+the stub is still 800 tokens over the doc's 1,500 target, and most extra round trips are the model printing a
+computed answer before submitting it, not shape discovery. At 1,500 tokens the pruner has to drop fields the
+tasks need (`merged_at`, `files[].changes`, `user`), so 2,500 was used. Combined report: `bench/results/v1-haiku/report.md`.
+
+### Opus 5.5 (run `v1-opus`, untyped B vs typed C, 308 of 330 episodes)
+
+The remaining credit covered B and C only. A and L were skipped (on Haiku, L lost to B everywhere), and an $8
+spending cap (`--max-cost`) stopped the run 22 episodes short of 5 reps (mock 67/70 and sqlite 32/40 per
+condition). Episodes run rep-major, so every task has at least 3 reps. GitHub uses the budgeted stub.
+
+| server | tokens / completed task, C vs B | round trips B → C | task success |
+|---|---|---|---|
+| messy mock | −6.6% [−21.8, 12.2] | 3.87 → **2.58** | 100% both |
+| filesystem | +3.5% [−12.9, 23.4] | 3.17 → 2.90 | 100% both |
+| sqlite | +1.0% [−9.9, 18.3] | 3.75 → 3.41 | 100% both |
+| github | **+34.4%** [3.8, 69.9] | 2.72 → 2.70 | 100% both |
+| all | +9.3% [−5.3, 24.9] | 3.40 → **2.82** | 100% both |
+
+- Opus already writes efficient untyped scripts, so types cut round trips (−0.58 overall, CI excludes 0)
+  without cutting tokens. Each turn re-sends the stub, and that cost about cancels the saved turns.
+- First-try success is 0% for both conditions because Opus never submits from its first script: in 92% of
+  episodes the last turn is a bare `submit(x)` after printing the answer. That turn costs every code-mode
+  condition one round trip. The benchmark's submit protocol, not the types, is the main thing keeping round
+  trips above the doc's 1.5 target.
 
 ## Known limitations
 
@@ -189,7 +242,7 @@ out of credits. Rerunning the same harness command resumes the rest.
   Python `repr` text, which TypeStub types honestly as `string`.
 - Semantic traps are invisible to shape inference. For example, GitHub's list endpoint reports `merged: false`
   for every PR, so only `merged_at` is reliable.
-- Large APIs make large stubs. The GitHub typed stub costs about 5.6k extra prompt tokens for 12 tools, which is why
-  condition L exists.
+- Large APIs make large stubs. The stub budget cut GitHub's from 5.6k to 2.3k extra tokens for 12 tools, but that
+  is still above 1,500, and pruning further removes fields tasks need.
 - Redaction keeps lowercase tokens such as logins and ids, so enum detection still works. Review samples before
   sharing them.

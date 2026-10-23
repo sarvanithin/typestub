@@ -1,5 +1,5 @@
 import { isSingleItemTool, paginationPlan, pascal, snake, toolNoun, type JsonSchema, type ServerSchema, type ToolSchema } from '@typestub/infer';
-import { fieldDoc, singularHint, structuralHash } from '@typestub/gen-ts';
+import { estimateTokens, fieldDoc, fitToBudget, singularHint, structuralHash } from '@typestub/gen-ts';
 
 const FORMAT_ALIASES: Record<string, [string, string]> = {
   'date-time': ['IsoDateTime', 'ISO 8601 date-time string'],
@@ -20,6 +20,10 @@ export interface GeneratePyOptions {
   examples?: boolean;
   untyped?: boolean;
   tools?: string[];
+  /** Short `# N%` field comments and budget pruning; `'auto'` (default) applies them above `budget`. */
+  compact?: boolean | 'auto';
+  /** Token budget for the typed output declarations (default 3000), as in the TypeScript generator. */
+  budget?: number;
 }
 
 export interface GeneratedPy {
@@ -34,7 +38,10 @@ class PyRegistry {
   private byHash = new Map<string, string>();
   readonly formats = new Set<string>();
 
-  constructor(private examples: boolean) {}
+  constructor(
+    private examples: boolean,
+    private compact = false,
+  ) {}
 
   declarations(): string[] {
     const aliases = [...this.formats].sort().map((f) => `${FORMAT_ALIASES[f][0]} = str  # ${FORMAT_ALIASES[f][1]}`);
@@ -120,14 +127,16 @@ class PyRegistry {
     const req = new Set(s.required ?? []);
     const fields = Object.entries(s.properties).map(([k, v]) => {
       const t = this.typeOf(v, hint + pascal(k));
-      const doc = fieldDoc(v, { examples: this.examples });
+      const doc = this.compact ? compactDoc(v) : fieldDoc(v, { examples: this.examples });
       return { k, t: req.has(k) ? t : `NotRequired[${t}]`, doc: doc.length ? `  # ${doc.join('; ')}` : '' };
     });
+    // Budget pruning dropped fields here; they are still in the dict at runtime.
+    const more = s['x-pruned'] ? `    # +${s['x-pruned']} less-used fields omitted from this stub; read them with .get()\n` : '';
     let decl: string;
     if (fields.every((f) => isPyIdent(f.k))) {
-      decl = `class ${name}(TypedDict):\n${fields.map((f) => `    ${f.k}: ${f.t}${f.doc}`).join('\n')}\n`;
+      decl = `class ${name}(TypedDict):\n${fields.map((f) => `    ${f.k}: ${f.t}${f.doc}`).join('\n')}\n${more}`;
     } else {
-      decl = `${name} = TypedDict(${JSON.stringify(name)}, {\n${fields.map((f) => `    ${JSON.stringify(f.k)}: ${JSON.stringify(f.t)},${f.doc}`).join('\n')}\n})\n`;
+      decl = `${name} = TypedDict(${JSON.stringify(name)}, {\n${fields.map((f) => `    ${JSON.stringify(f.k)}: ${JSON.stringify(f.t)},${f.doc}`).join('\n')}\n${more}})\n`;
     }
     this.decls.set(name, decl);
     return name;
@@ -145,6 +154,17 @@ class PyRegistry {
     this.decls.set(name, `${name} = Union[${names.map((n) => JSON.stringify(n)).join(', ')}]${tag ? `  # discriminated by "${tag}"` : ''}\n`);
     return name;
   }
+}
+
+/** Presence and null rates only, e.g. `84%`. */
+function compactDoc(s: JsonSchema): string[] {
+  const out: string[] = [];
+  const presence = s['x-presence'];
+  if (presence !== undefined && presence < 1) out.push(`${Math.round(presence * 100)}%`);
+  const nullRate = s['x-nullRate'];
+  if (nullRate !== undefined && nullRate > 0 && nullRate < 1) out.push(`null ${Math.round(nullRate * 100)}%`);
+  if (s['x-jsonString']) out.push('JSON string, parsed by the runtime');
+  return out;
 }
 
 function resultHint(t: ToolSchema): string {
@@ -170,7 +190,18 @@ function params(t: ToolSchema, reg: PyRegistry, overrides: Record<string, string
 
 /** Generate a Python module of TypedDicts and a Protocol with one async method per tool. */
 export function generatePy(schema: ServerSchema, opts: GeneratePyOptions = {}): GeneratedPy {
-  const reg = new PyRegistry(opts.examples ?? true);
+  const mode = opts.compact ?? 'auto';
+  if (mode !== 'auto' || opts.untyped) return render(schema, opts, mode === true);
+  const full = render(schema, opts, false);
+  const base = estimateTokens(render(schema, { ...opts, untyped: true }, false).source);
+  const overhead = (g: GeneratedPy) => estimateTokens(g.source) - base;
+  const budget = opts.budget ?? 3000;
+  if (overhead(full) <= budget) return full;
+  return render(fitToBudget(schema, budget, (s) => overhead(render(s, opts, true))), opts, true);
+}
+
+function render(schema: ServerSchema, opts: GeneratePyOptions, compact: boolean): GeneratedPy {
+  const reg = new PyRegistry(!compact && (opts.examples ?? true), compact);
   const tools = schema.tools.filter((t) => !opts.tools || opts.tools.includes(t.tool));
   const methods: string[] = [];
   const returnTypes: Record<string, string> = {};
@@ -200,13 +231,13 @@ export function generatePy(schema: ServerSchema, opts: GeneratePyOptions = {}): 
       doc.push(`Paginated: pass result${path} back as ${plan.cursorParam}= (None/empty on the last page).`);
     }
     if (!opts.untyped && t.errorSamples) doc.push('Raises ToolError when the tool reports an error.');
-    if (!opts.untyped && t.lowConfidence) doc.push(`Low confidence: inferred from only ${t.samples} sample(s).`);
+    if (!opts.untyped && t.lowConfidence && !compact) doc.push(`Low confidence: inferred from only ${t.samples} sample(s).`);
     const docstr = doc.length ? `        """${doc.join(' ').replace(/"""/g, "'''")}"""\n` : '';
     methods.push(`${overloads.join('')}    async def ${snake(t.tool)}(${params(t, reg)}) -> ${ret}:\n${docstr}        ...\n`);
   }
   const header = [
     '# Generated by TypeStub. Do not edit.',
-    `# server: ${schema.server}${schema.serverVersion ? `@${schema.serverVersion}` : ''} · schema ${schema.schemaHash} · ${tools.length} tools${opts.untyped ? ' · untyped' : ''}`,
+    `# server: ${schema.server}${schema.serverVersion ? `@${schema.serverVersion}` : ''} · schema ${schema.schemaHash} · ${tools.length} tools${opts.untyped ? ' · untyped' : ''}${compact ? ' · compact: "# N%" = field present in N% of responses' : ''}`,
     'from __future__ import annotations',
     '',
     'from typing import Any, Literal, NotRequired, Protocol, TypedDict, Union, overload',

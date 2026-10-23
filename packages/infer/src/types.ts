@@ -38,6 +38,8 @@ export interface JsonSchema {
   'x-id'?: string;
   /** Subtree truncated by depth or field-count caps. */
   'x-truncated'?: true;
+  /** Fields dropped by the stub generator's token budget (still present at runtime). */
+  'x-pruned'?: number;
   [key: `x-${string}`]: unknown;
 }
 

@@ -2,7 +2,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import ts from 'typescript';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { generateTs } from '@typestub/gen-ts';
+import { estimateTokens, generateTs } from '@typestub/gen-ts';
 import type { ServerSchema } from '@typestub/infer';
 import { mockSchema } from '../../../tests/helpers/mock-schema.js';
 
@@ -46,5 +46,23 @@ describe('generateTs', () => {
   it('writes a compact index', () => {
     const { index } = generateTs(schema);
     expect(index.split('\n').filter((l) => l.startsWith('- '))).toHaveLength(schema.tools.length);
+  });
+
+  it('compacts and prunes to a token budget, keeping pagination and identity fields', () => {
+    const base = estimateTokens(generateTs(schema, { untyped: true }).dts);
+    const full = generateTs(schema, { compact: false }).dts;
+    const { dts } = generateTs(schema, { budget: 1300 });
+    expect(estimateTokens(full) - base).toBeGreaterThan(1300);
+    expect(estimateTokens(dts) - base).toBeLessThanOrEqual(1300);
+    expect(dts).toContain('· compact');
+    expect(dts).toContain('[more: string]: unknown;');
+    expect(dts).toMatch(/export interface Customer \{ id: \w+;/);
+    expect(dts).toMatch(/next_cursor\??: /);
+    expect(dts).toContain('listCustomersAll(');
+    expect(compiles(dts, root)).toEqual([]);
+  });
+
+  it('leaves stubs under budget untouched', () => {
+    expect(generateTs(schema, { budget: 100_000 }).dts).toBe(generateTs(schema, { compact: false }).dts);
   });
 });

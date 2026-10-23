@@ -38,7 +38,8 @@ async function init(msg) {
   const full = JSON.parse(readFileSync(msg.schemaPath, 'utf8'));
   const schema = { ...full, server: msg.identifier, tools: full.tools.filter((t) => toolNames.includes(t.tool)) };
   proxy = createServer(schema, mcpCallTool(client));
-  const opts = { tools: toolNames, runtimeDecls: false, examples: msg.examples ?? true };
+  // Stub budget per server (servers.yaml `stub_budget`); without one, full stubs as in run v0.
+  const opts = { tools: toolNames, runtimeDecls: false, examples: msg.examples ?? true, compact: msg.budget ? 'auto' : false, budget: msg.budget };
   schemaForTypes = schema;
   typeOpts = opts;
   const typed = generateTs(schema, opts);

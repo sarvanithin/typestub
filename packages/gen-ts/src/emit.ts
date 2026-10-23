@@ -11,7 +11,17 @@ const FORMAT_ALIASES: Record<string, { name: string; doc: string }> = {
 export interface EmitOptions {
   /** Include example values in doc comments. */
   examples: boolean;
+  /** One line per interface, inline `N%` presence tags, link fields folded: for large servers. */
+  compact?: boolean;
 }
+
+/** Hypermedia link fields (`events_url`, `url`, ...) that `compact` folds into one index signature. */
+const isLinkField = (k: string, s: JsonSchema) => k !== 'html_url' && /(^|_)url$/.test(k) && s.format === 'uri';
+
+/** Explains the compact notation; printed once at the top of compact stubs. */
+export const COMPACT_LEGEND =
+  '// /*N%*/ field present in N% of responses; /*null N%*/ null in N%. [link: `${string}url`]: more *_url fields.\n' +
+  '// [more: string]: unknown = less-used fields omitted from this stub; they exist at runtime.\n';
 
 const IDENT = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 export const propKey = (k: string) => (IDENT.test(k) ? k : JSON.stringify(k));
@@ -52,6 +62,17 @@ export function fieldDoc(s: JsonSchema, opts: EmitOptions): string[] {
     if (text.length <= 40) parts.push(`e.g. ${text}`);
   }
   return parts;
+}
+
+/** Short inline annotation for compact stubs, e.g. `84%` wrapped in a block comment. */
+export function compactDoc(s: JsonSchema): string {
+  const parts: string[] = [];
+  const presence = s['x-presence'];
+  if (presence !== undefined && presence < 1) parts.push(`${Math.round(presence * 100)}%`);
+  const nullRate = s['x-nullRate'];
+  if (nullRate !== undefined && nullRate > 0 && nullRate < 1) parts.push(`null ${Math.round(nullRate * 100)}%`);
+  if (s['x-jsonString']) parts.push('JSON string, parsed by the runtime');
+  return parts.length ? `/*${parts.join(', ')}*/ ` : '';
 }
 
 export const docBlock = (lines: string[], indent = '', compact = false) => {
@@ -119,7 +140,7 @@ export class TypeRegistry {
   declarations(): string[] {
     const aliases = [...this.formats].sort().map((f) => {
       const a = FORMAT_ALIASES[f];
-      return `/** ${a.doc} */\nexport type ${a.name} = string;\n`;
+      return this.opts.compact ? `export type ${a.name} = string; // ${a.doc}\n` : `/** ${a.doc} */\nexport type ${a.name} = string;\n`;
     });
     return [...aliases, ...this.decls.values()];
   }
@@ -195,15 +216,27 @@ export class TypeRegistry {
     if (s['x-id']) this.idNames.set(s['x-id'], name);
     if (!fresh) return name;
     const req = new Set(s.required ?? []);
-    let body = '';
-    for (const [k, v] of Object.entries(s.properties)) {
+    const compact = this.opts.compact === true;
+    const entries = Object.entries(s.properties);
+    // Fold only when every `*url` key is a string, so the index signature can't conflict.
+    const foldable = entries.every(([k, v]) => !/url$/.test(k) || v.type === 'string');
+    const links = compact && foldable ? entries.filter(([k, v]) => isLinkField(k, v)) : [];
+    const fields: string[] = [];
+    for (const [k, v] of entries) {
+      if (links.length >= 2 && isLinkField(k, v)) continue;
       const t = this.typeOf(v, name + pascal(k), pascal(k));
       this.noteRef(t, k);
-      body += docBlock(fieldDoc(v, this.opts), '  ', true);
-      body += `  ${propKey(k)}${req.has(k) ? '' : '?'}: ${t};\n`;
+      const decl = `${propKey(k)}${req.has(k) ? '' : '?'}: ${t};`;
+      fields.push(compact ? `${compactDoc(v)}${decl}` : `${docBlock(fieldDoc(v, this.opts), '  ', true)}  ${decl}`);
     }
-    const doc = s.description ? docBlock([s.description.split('\n')[0]]) : '';
-    this.decls.set(name, `${doc}export interface ${name} {\n${body}}\n`);
+    if (s['x-pruned']) fields.push('[more: string]: unknown;');
+    else if (links.length >= 2) {
+      this.formats.add('uri');
+      fields.push('[link: `${string}url`]: Url;');
+    }
+    const doc = s.description && !compact ? docBlock([s.description.split('\n')[0]]) : '';
+    const body = compact ? ` ${fields.join(' ')} ` : `\n${fields.join('\n')}\n`;
+    this.decls.set(name, `${doc}export interface ${name} {${body}}\n`);
     return name;
   }
 
@@ -219,7 +252,8 @@ export class TypeRegistry {
     });
     {
       const doc = tag ? `/** Discriminated by \`${tag}\`. */\n` : '';
-      this.decls.set(name, `${doc}export type ${name} =\n${names.map((n) => `  | ${n}`).join('\n')};\n`);
+      const body = this.opts.compact ? ` ${names.join(' | ')};` : `\n${names.map((n) => `  | ${n}`).join('\n')};`;
+      this.decls.set(name, `${doc}export type ${name} =${body}\n`);
     }
     return name;
   }

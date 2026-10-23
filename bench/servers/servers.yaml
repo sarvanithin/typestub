@@ -30,5 +30,7 @@ github:
   args: [stdio, --read-only, --toolsets, "repos,issues,pull_requests"]
   env_cmd: { GITHUB_PERSONAL_ACCESS_TOKEN: [gh, auth, token] }
   probe_config: github.probe.yaml
+  # Compact + prune the typed stub to this many tokens (run v0 used the full 5.6k-token stub).
+  stub_budget: 2500
   tools: [list_issues, issue_read, search_issues, list_pull_requests, pull_request_read, list_commits, get_commit,
           list_releases, get_latest_release, list_tags, list_branches, get_file_contents]

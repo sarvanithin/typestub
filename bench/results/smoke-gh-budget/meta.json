@@ -1,0 +1,28 @@
+{
+  "models": [
+    "claude-haiku-5-5"
+  ],
+  "effort": "medium",
+  "conditions": [
+    "C"
+  ],
+  "reps": 1,
+  "tasks": [
+    "gh-merged-prs"
+  ],
+  "schema_hashes": {
+    "github": "fd8bf50c910ca525"
+  },
+  "stub_tokens": {
+    "claude-haiku-5-5": {
+      "github": {
+        "B": 4585,
+        "C": 6903,
+        "L": 5441,
+        "typed_overhead": 2318,
+        "lazy_overhead": 856
+      }
+    }
+  },
+  "notes": "Sampling uses model defaults: temperature is not accepted by these models."
+}

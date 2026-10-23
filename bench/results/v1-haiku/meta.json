@@ -1,0 +1,95 @@
+{
+ "models": [
+  "claude-haiku-5-5"
+ ],
+ "effort": "medium",
+ "conditions": [
+  "A",
+  "B",
+  "C",
+  "L"
+ ],
+ "reps": 5,
+ "tasks": [
+  "fs-largest-log",
+  "fs-count-py",
+  "fs-lodash-projects",
+  "fs-csv-bytes",
+  "fs-debug-configs",
+  "fs-three-largest",
+  "fs-no-readme",
+  "fs-alpha-src-lines",
+  "gh-open-bugs-unassigned",
+  "gh-duplicates",
+  "gh-recent-releases",
+  "gh-most-commented-open",
+  "gh-recent-commit-author",
+  "gh-merged-prs",
+  "gh-pr-files",
+  "gh-enhancement-ux",
+  "gh-top-opener-2017",
+  "gh-largest-changed-files",
+  "mock-urgent-unassigned",
+  "mock-march-not-april",
+  "mock-enterprise-spend",
+  "mock-coupons-by-currency",
+  "mock-most-failed-payments",
+  "mock-de-refunded",
+  "mock-dhl-line-items",
+  "mock-top-sku",
+  "mock-ios-logins",
+  "mock-pro-closed-tickets",
+  "mock-partial-refunds",
+  "mock-no-email-with-ticket",
+  "mock-top-shipped-spender",
+  "mock-shipping-no-tracking",
+  "sql-march-not-april",
+  "sql-top-categories",
+  "sql-best-avg-order",
+  "sql-garden-orders",
+  "sql-countries",
+  "sql-never-ordered",
+  "sql-cancel-month",
+  "sql-de-delivered"
+ ],
+ "schema_hashes": {
+  "filesystem": "77f48fa819383d84",
+  "github": "fd8bf50c910ca525",
+  "messy-mock": "5d4db0acf7343be6",
+  "sqlite": "fa5791404d9fe592"
+ },
+ "stub_tokens": {
+  "claude-haiku-5-5": {
+   "filesystem": {
+    "B": 1402,
+    "C": 1908,
+    "L": 2085,
+    "typed_overhead": 506,
+    "lazy_overhead": 683
+   },
+   "github": {
+    "B": 4585,
+    "C": 6903,
+    "L": 5441,
+    "typed_overhead": 2318,
+    "lazy_overhead": 856
+   },
+   "messy-mock": {
+    "B": 1585,
+    "C": 4513,
+    "L": 2104,
+    "typed_overhead": 2928,
+    "lazy_overhead": 519
+   },
+   "sqlite": {
+    "B": 586,
+    "C": 792,
+    "L": 763,
+    "typed_overhead": 206,
+    "lazy_overhead": 177
+   }
+  }
+ },
+ "notes": "Sampling uses model defaults: temperature is not accepted by these models.",
+ "note": "v0 Haiku episodes with GitHub replaced by run v1-github (budgeted 2,500-token stub)"
+}

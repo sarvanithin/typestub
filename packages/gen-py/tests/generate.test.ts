@@ -42,4 +42,24 @@ print(n)`;
   it('untyped mode returns Any', () => {
     expect(generatePy(schema, { untyped: true }).source).toContain('-> Any:');
   });
+
+  it('prunes to a token budget and stays importable', () => {
+    const { source } = generatePy(schema, { budget: 1200 });
+    expect(source).toContain('· compact');
+    expect(source).toMatch(/# \+\d+ less-used fields omitted/);
+    expect(source).toContain('class Customer(TypedDict):');
+    const file = join(root, 'messy_mock_budget.py');
+    writeFileSync(file, source);
+    const check = `import importlib.util, typing, sys
+spec = importlib.util.spec_from_file_location("m", ${JSON.stringify(file)})
+m = importlib.util.module_from_spec(spec); sys.modules["m"] = m; spec.loader.exec_module(m)
+for k, v in vars(m).items():
+    if isinstance(v, type) and typing.is_typeddict(v): typing.get_type_hints(v)
+print("ok")`;
+    expect(execFileSync('python3', ['-I', '-c', check], { encoding: 'utf8' }).trim()).toBe('ok');
+  });
+
+  it('leaves Python stubs under budget untouched', () => {
+    expect(generatePy(schema, { budget: 100_000 }).source).toBe(generatePy(schema, { compact: false }).source);
+  });
 });
