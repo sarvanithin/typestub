@@ -1,0 +1,107 @@
+- id: mock-urgent-unassigned
+  server: messy-mock
+  prompt: List the ids of open tickets with priority urgent that have no assignee, sorted by comment_count descending, then
+    id ascending.
+  answer_format: JSON array of ticket ids (numbers)
+  check: list
+  expected:
+  - 1056
+  - 1035
+  - 1005
+- id: mock-march-not-april
+  server: messy-mock
+  prompt: Which customers placed more than 2 orders in March 2026 but no orders in April 2026? (Any order status counts.)
+  answer_format: JSON array of customer ids
+  check: set
+  expected:
+  - cus_bjcg2tag
+- id: mock-enterprise-spend
+  server: messy-mock
+  prompt: What is the total of total_cents across paid or shipped orders placed by enterprise-tier customers?
+  answer_format: a single integer (cents)
+  check: number
+  expected: 765965
+- id: mock-coupons-by-currency
+  server: messy-mock
+  prompt: For each currency, how many orders used a coupon? Include every currency that appears on any order (use 0 when none
+    used a coupon).
+  answer_format: 'JSON object mapping currency code to count, e.g. {"USD": 3}'
+  check: exact
+  expected:
+    GBP: 5
+    USD: 13
+    EUR: 4
+- id: mock-most-failed-payments
+  server: messy-mock
+  prompt: Which customer has the most payment_failed events? Return the customer's name.
+  answer_format: the customer's name as a string
+  check: string
+  expected: Ken Thompson
+- id: mock-de-refunded
+  server: messy-mock
+  prompt: Which customers with an address in Germany (country DE) have at least one refunded order?
+  answer_format: JSON array of customer ids
+  check: set
+  expected:
+  - cus_af7c5psd
+- id: mock-dhl-line-items
+  server: messy-mock
+  prompt: Among shipped orders whose shipping carrier is dhl, what is the average number of line items per order? Round to
+    2 decimals.
+  answer_format: a number rounded to 2 decimals
+  check: number
+  expected: 3.17
+- id: mock-top-sku
+  server: messy-mock
+  prompt: Which SKU has the highest total quantity across all orders that are not cancelled?
+  answer_format: the SKU as a string
+  check: string
+  expected: SKU-100
+- id: mock-ios-logins
+  server: messy-mock
+  prompt: How many login events came from an iOS device whose app_version starts with "4.5"?
+  answer_format: a single integer
+  check: number
+  expected: 2
+- id: mock-pro-closed-tickets
+  server: messy-mock
+  prompt: List the ids of closed tickets that belong to pro-tier customers, sorted ascending.
+  answer_format: JSON array of ticket ids (numbers)
+  check: list
+  expected:
+  - 1011
+  - 1014
+  - 1027
+  - 1032
+  - 1043
+  - 1057
+  - 1060
+- id: mock-partial-refunds
+  server: messy-mock
+  prompt: What is the sum of amount_cents over refund_issued events where the refund was partial?
+  answer_format: a single integer (cents)
+  check: number
+  expected: 156977
+- id: mock-no-email-with-ticket
+  server: messy-mock
+  prompt: Which customers have no email address on file (email is null) and have at least one support ticket?
+  answer_format: JSON array of customer ids
+  check: set
+  expected:
+  - cus_hk04shkk
+  - cus_w5l2oe5n
+- id: mock-top-shipped-spender
+  server: messy-mock
+  prompt: Using per-customer order statistics restricted to shipped orders, which customer has the highest spend? Return the
+    customer's id and name.
+  answer_format: 'JSON object {"id": ..., "name": ...}'
+  check: exact
+  expected:
+    id: cus_l4fnadx0
+    name: Frances Backus
+- id: mock-shipping-no-tracking
+  server: messy-mock
+  prompt: How many orders have shipping information but no tracking number?
+  answer_format: a single integer
+  check: number
+  expected: 17

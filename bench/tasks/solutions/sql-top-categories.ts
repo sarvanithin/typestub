@@ -1,0 +1,2 @@
+const rows = async (query: string) => JSON.parse((await sqlite.readQuery({ query })).replace(/'/g, '"').replace(/\bNone\b/g, 'null'));
+submit((await rows("SELECT p.category FROM order_items i JOIN orders o ON o.id=i.order_id JOIN products p ON p.id=i.product_id WHERE o.status!='cancelled' AND o.order_date BETWEEN '2026-01-01' AND '2026-03-31' GROUP BY 1 ORDER BY SUM(i.qty*i.unit_price) DESC LIMIT 3")).map((x: any) => x.category));

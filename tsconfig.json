@@ -1,0 +1,29 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "./servers/messy-mock"
+    },
+    {
+      "path": "./packages/infer"
+    },
+    {
+      "path": "./packages/recorder"
+    },
+    {
+      "path": "./packages/gen-ts"
+    },
+    {
+      "path": "./packages/gen-py"
+    },
+    {
+      "path": "./packages/shim"
+    },
+    {
+      "path": "./packages/drift"
+    },
+    {
+      "path": "./packages/cli"
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+# Probe pool for the GitHub MCP server. Recorded against repos that are NOT the benchmark
+# repo (atom/teletype): kriskowal/q, microsoft/TypeScript-Handbook, atom/atom (releases), atom/fuzzy-finder (tags).
+allow: [list_issues, issue_read, search_issues, list_pull_requests, pull_request_read, list_commits, get_commit,
+        list_releases, get_latest_release, list_tags, list_branches, get_file_contents]
+defaults: { owner: kriskowal, repo: q }
+perTool: 25
+tools:
+  list_issues:
+    - { state: OPEN }
+    - { state: CLOSED, perPage: 20 }
+    - { labels: [bug] }
+    - { owner: microsoft, repo: TypeScript-Handbook, state: OPEN, perPage: 30 }
+    - { owner: microsoft, repo: TypeScript-Handbook, orderBy: COMMENTS, direction: DESC }
+  issue_read:
+    - { method: get, issue_number: 860 }
+    - { method: get, issue_number: 1170 }
+    - { method: get, issue_number: 1000 }
+    - { method: get_comments, issue_number: 860 }
+    - { method: get_comments, issue_number: 1170 }
+    - { method: get_labels, issue_number: 860 }
+    - { method: get, owner: microsoft, repo: TypeScript-Handbook, issue_number: 1200 }
+    - { method: get_comments, owner: microsoft, repo: TypeScript-Handbook, issue_number: 1200 }
+  search_issues:
+    - { query: "repo:kriskowal/q is:issue is:open label:bug" }
+    - { query: "repo:kriskowal/q is:issue comments:>5" }
+    - { query: "repo:microsoft/TypeScript-Handbook is:issue no:assignee", perPage: 30 }
+  list_pull_requests:
+    - { state: all, perPage: 30 }
+    - { state: open }
+    - { owner: microsoft, repo: TypeScript-Handbook, state: closed, perPage: 30 }
+  pull_request_read:
+    - { method: get, pullNumber: 875 }
+    - { method: get_files, pullNumber: 875 }
+    - { method: get, owner: microsoft, repo: TypeScript-Handbook, pullNumber: 1300 }
+    - { method: get_files, owner: microsoft, repo: TypeScript-Handbook, pullNumber: 1300 }
+  list_commits:
+    - { perPage: 10 }
+    - { perPage: 30, page: 2 }
+    - { owner: microsoft, repo: TypeScript-Handbook, perPage: 20 }
+  list_releases:
+    - { perPage: 10 }
+    - { owner: atom, repo: atom, perPage: 30 }
+    - { owner: atom, repo: atom, perPage: 10, page: 3 }
+  get_latest_release: [ { owner: atom, repo: atom } ]
+  list_tags: [ { perPage: 30 }, { owner: atom, repo: fuzzy-finder } ]
+  list_branches: [ {}, { owner: microsoft, repo: TypeScript-Handbook } ]
+  get_file_contents: [ { path: README.md }, { path: "" }, { path: package.json } ]

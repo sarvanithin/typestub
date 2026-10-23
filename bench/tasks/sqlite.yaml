@@ -1,0 +1,60 @@
+- id: sql-march-not-april
+  server: sqlite
+  prompt: Which customers ordered more than twice in March 2026 but not at all in April 2026? (Any status counts.)
+  answer_format: JSON array of customer names
+  check: set
+  expected:
+  - Chloe Khan
+- id: sql-top-categories
+  server: sqlite
+  prompt: What are the top 3 product categories by revenue (qty * unit_price) from non-cancelled orders placed in Q1 2026
+    (January to March)? Largest first.
+  answer_format: JSON array of three category names
+  check: list
+  expected:
+  - kitchen
+  - outdoor
+  - books
+- id: sql-best-avg-order
+  server: sqlite
+  prompt: Among customers with at least 3 orders, who has the highest average order total? Return the name.
+  answer_format: the customer's name
+  check: string
+  expected: Hana Novak
+- id: sql-garden-orders
+  server: sqlite
+  prompt: How many orders contain at least one product from the garden category?
+  answer_format: a single integer
+  check: number
+  expected: 106
+- id: sql-countries
+  server: sqlite
+  prompt: Which countries have more than 8 customers? Sort by customer count descending, then country code ascending.
+  answer_format: JSON array of country codes
+  check: list
+  expected:
+  - GB
+  - IN
+  - DE
+  - FR
+  - US
+- id: sql-never-ordered
+  server: sqlite
+  prompt: Which products have never been ordered? Return their names.
+  answer_format: JSON array of product names
+  check: set
+  expected:
+  - garden-item-30
+- id: sql-cancel-month
+  server: sqlite
+  prompt: Which month had the most cancelled orders?
+  answer_format: month as "YYYY-MM"
+  check: string
+  expected: 2026-04
+- id: sql-de-delivered
+  server: sqlite
+  prompt: What is the total revenue (sum of order totals) from delivered orders placed by customers in Germany (DE)? Round
+    to 2 decimals.
+  answer_format: a number rounded to 2 decimals
+  check: number
+  expected: 5006.71

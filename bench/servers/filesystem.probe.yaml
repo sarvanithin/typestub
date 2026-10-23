@@ -1,0 +1,14 @@
+# Probe pool: a differently seeded tree (data/fs-probe-fixture), never the benchmark tree.
+allow: [list_allowed_directories, list_directory, list_directory_with_sizes, directory_tree, search_files,
+        get_file_info, read_text_file, read_multiple_files]
+perTool: 20
+tools:
+  search_files:
+    - { path: "{bench}/data/fs-probe-fixture", pattern: "*.log" }
+    - { path: "{bench}/data/fs-probe-fixture", pattern: "**/*.json" }
+    - { path: "{bench}/data/fs-probe-fixture/projects", pattern: "*.py" }
+  read_multiple_files:
+    - { paths: ["{bench}/data/fs-probe-fixture/configs/dev.json", "{bench}/data/fs-probe-fixture/configs/prod.json"] }
+    - { paths: ["{bench}/data/fs-probe-fixture/projects/alpha/README.md", "{bench}/data/fs-probe-fixture/data/notes.txt", "{bench}/data/fs-probe-fixture/missing.txt"] }
+  list_directory_with_sizes:
+    - { path: "{bench}/data/fs-probe-fixture/projects/bravo/logs", sortBy: size }

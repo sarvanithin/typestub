@@ -1,0 +1,11 @@
+export * from './types.js';
+export { extractPayload, parseEmbeddedJson, decodeEmbedded, hasEmbedded, type Extracted } from './extract.js';
+export { shapeOf, mergeShapes, emptyShape, kindsOf, MAX_DEPTH, MAX_FIELDS, type Shape } from './shape.js';
+export { shapeToSchema, collectGlobalEnums, ENUM_MAX_VALUES, ENUM_MIN_OBSERVATIONS, type SchemaOptions } from './to-schema.js';
+export { confidenceOf, LOW_CONFIDENCE_SAMPLES } from './confidence.js';
+export { applyDeclared } from './declared.js';
+export { schemaAccuracy, flatten, type AccuracyReport, type FieldDescriptor } from './accuracy.js';
+export { inferTool, inferServer, foldSamples, argVariants, structuralKey, hashSchemas, stableStringify, type InferOptions, type Folded } from './infer.js';
+export * from './patterns.js';
+export { pascal, camel, snake, singular, toolNoun, toolParts, isSingleItemTool, paginationPlan, getPath, CURSOR_PARAMS, type PaginationPlan } from './naming.js';
+export { foldRecursion, refIndex } from './recursion.js';

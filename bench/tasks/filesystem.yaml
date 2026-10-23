@@ -1,0 +1,57 @@
+- id: fs-largest-log
+  server: filesystem
+  prompt: Which .log file is the largest (in bytes) anywhere under projects/? Return its path relative to the root directory
+    you are allowed to access.
+  answer_format: a relative path such as "projects/x/logs/y.log"
+  check: path
+  expected: projects/bravo/logs/archive/old.log
+- id: fs-count-py
+  server: filesystem
+  prompt: How many .py files are there in the whole tree?
+  answer_format: a single integer
+  check: number
+  expected: 6
+- id: fs-lodash-projects
+  server: filesystem
+  prompt: Which projects (directory names directly under projects/) have a package.json that declares a dependency on lodash?
+  answer_format: JSON array of project directory names
+  check: set
+  expected:
+  - alpha
+  - charlie
+- id: fs-csv-bytes
+  server: filesystem
+  prompt: What is the total size in bytes of all .csv files under data/?
+  answer_format: a single integer (bytes)
+  check: number
+  expected: 5750
+- id: fs-debug-configs
+  server: filesystem
+  prompt: Which config files in configs/ have debug set to true?
+  answer_format: JSON array of file names such as ["x.json"]
+  check: set
+  expected:
+  - dev.json
+  - local.json
+- id: fs-three-largest
+  server: filesystem
+  prompt: List the three largest files in the whole tree, largest first, as paths relative to the root directory.
+  answer_format: JSON array of three relative paths
+  check: list
+  expected:
+  - projects/bravo/logs/archive/old.log
+  - projects/delta/logs/run-0.log
+  - projects/echo/logs/run-1.log
+- id: fs-no-readme
+  server: filesystem
+  prompt: Which project directories under projects/ have no README.md?
+  answer_format: JSON array of project directory names
+  check: set
+  expected:
+  - delta
+- id: fs-alpha-src-lines
+  server: filesystem
+  prompt: How many lines in total are in the files under projects/alpha/src?
+  answer_format: a single integer
+  check: number
+  expected: 91

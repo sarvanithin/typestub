@@ -1,0 +1,49 @@
+{
+  "models": [
+    "claude-haiku-5-5"
+  ],
+  "effort": "medium",
+  "conditions": [
+    "A",
+    "B",
+    "C"
+  ],
+  "reps": 1,
+  "tasks": [
+    "fs-debug-configs",
+    "gh-largest-changed-files",
+    "mock-top-sku",
+    "sql-cancel-month"
+  ],
+  "schema_hashes": {
+    "filesystem": "77f48fa819383d84",
+    "github": "fd8bf50c910ca525",
+    "messy-mock": "5d4db0acf7343be6",
+    "sqlite": "fa5791404d9fe592"
+  },
+  "stub_tokens": {
+    "claude-haiku-5-5": {
+      "filesystem": {
+        "B": 1402,
+        "C": 1908,
+        "typed_overhead": 506
+      },
+      "github": {
+        "B": 4585,
+        "C": 10145,
+        "typed_overhead": 5560
+      },
+      "messy-mock": {
+        "B": 1585,
+        "C": 4513,
+        "typed_overhead": 2928
+      },
+      "sqlite": {
+        "B": 586,
+        "C": 792,
+        "typed_overhead": 206
+      }
+    }
+  },
+  "notes": "Sampling uses model defaults: temperature is not accepted by these models."
+}

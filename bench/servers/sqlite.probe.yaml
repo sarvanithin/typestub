@@ -1,0 +1,21 @@
+# Probe pool: a differently seeded database (data/shop-probe.db). The server has no tool
+# annotations, so read-only tools are allowlisted explicitly.
+allow: [read-query, list-tables, describe-table]
+perTool: 20
+tools:
+  list-tables: [{}]
+  describe-table:
+    - { table_name: customers }
+    - { table_name: orders }
+    - { table_name: order_items }
+    - { table_name: products }
+    - { table_name: nope }
+  read-query:
+    - { query: "SELECT * FROM customers LIMIT 5" }
+    - { query: "SELECT id, status, total FROM orders WHERE status = 'shipped' LIMIT 10" }
+    - { query: "SELECT country, COUNT(*) AS n FROM customers GROUP BY country" }
+    - { query: "SELECT p.category, SUM(i.qty) AS units FROM order_items i JOIN products p ON p.id = i.product_id GROUP BY 1" }
+    - { query: "SELECT * FROM products WHERE price > 100" }
+    - { query: "SELECT order_date FROM orders ORDER BY order_date DESC LIMIT 3" }
+    - { query: "SELECT COUNT(*) FROM order_items" }
+    - { query: "SELECT * FROM no_such_table" }

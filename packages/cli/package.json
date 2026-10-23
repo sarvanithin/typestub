@@ -1,0 +1,34 @@
+{
+  "name": "typestub",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./servers": {
+      "types": "./dist/servers.d.ts",
+      "default": "./dist/servers.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@typestub/infer": "*",
+    "@typestub/recorder": "*",
+    "@typestub/gen-ts": "*",
+    "@typestub/gen-py": "*",
+    "@typestub/shim": "*",
+    "@typestub/drift": "*",
+    "commander": "^14.0.0",
+    "yaml": "^2.9.1"
+  },
+  "bin": {
+    "typestub": "dist/bin.js"
+  }
+}

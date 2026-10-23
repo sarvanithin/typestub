@@ -1,0 +1,34 @@
+# How the benchmark launches each MCP server. `{bench}` expands to the bench directory and
+# `{home}` to $HOME. `probe` launches the same server over separate data for stub recording.
+# `tools` is the subset exposed in every condition. Secrets come from `env_cmd` at runtime.
+messy-mock:
+  identifier: messyMock
+  command: node
+  args: ["{bench}/../servers/messy-mock/dist/bin.js"]
+  probe_config: null
+
+filesystem:
+  identifier: filesystem
+  command: npx
+  args: ["-y", "@modelcontextprotocol/server-filesystem@2.0.0", "{bench}/data/fs-fixture"]
+  probe_args: ["-y", "@modelcontextprotocol/server-filesystem@2.0.0", "{bench}/data/fs-probe-fixture"]
+  probe_config: filesystem.probe.yaml
+  tools: [list_allowed_directories, list_directory, list_directory_with_sizes, directory_tree, search_files,
+          get_file_info, read_text_file, read_multiple_files]
+
+sqlite:
+  identifier: sqlite
+  command: uvx
+  args: ["--with", "mcp==1.9.4", "--with", "pydantic==2.10.6", "mcp-server-sqlite@0.6.2", "--db-path", "{bench}/data/shop.db"]
+  probe_args: ["--with", "mcp==1.9.4", "--with", "pydantic==2.10.6", "mcp-server-sqlite@0.6.2", "--db-path", "{bench}/data/shop-probe.db"]
+  probe_config: sqlite.probe.yaml
+  tools: [read-query, list-tables, describe-table]
+
+github:
+  identifier: github
+  command: "{home}/.local/share/github-mcp-server-2.0.3/github-mcp-server"
+  args: [stdio, --read-only, --toolsets, "repos,issues,pull_requests"]
+  env_cmd: { GITHUB_PERSONAL_ACCESS_TOKEN: [gh, auth, token] }
+  probe_config: github.probe.yaml
+  tools: [list_issues, issue_read, search_issues, list_pull_requests, pull_request_read, list_commits, get_commit,
+          list_releases, get_latest_release, list_tags, list_branches, get_file_contents]

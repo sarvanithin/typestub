@@ -1,0 +1,31 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo"
+  },
+  "include": [
+    "src"
+  ],
+  "references": [
+    {
+      "path": "../../packages/infer"
+    },
+    {
+      "path": "../../packages/recorder"
+    },
+    {
+      "path": "../../packages/gen-ts"
+    },
+    {
+      "path": "../../packages/gen-py"
+    },
+    {
+      "path": "../../packages/shim"
+    },
+    {
+      "path": "../../packages/drift"
+    }
+  ]
+}

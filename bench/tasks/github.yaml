@@ -1,0 +1,86 @@
+- id: gh-open-bugs-unassigned
+  server: github
+  prompt: The repository is atom/teletype on GitHub. List open issues (not pull requests) labeled bug that have no assignee,
+    sorted by comment count descending, then issue number ascending.
+  answer_format: JSON array of issue numbers
+  check: list
+  expected:
+  - 369
+  - 298
+  - 224
+  - 217
+  - 134
+  - 140
+  - 174
+  - 102
+  - 148
+- id: gh-duplicates
+  server: github
+  prompt: The repository is atom/teletype on GitHub. How many closed issues (not pull requests) carry the duplicate label?
+  answer_format: a single integer
+  check: number
+  expected: 57
+- id: gh-recent-releases
+  server: github
+  prompt: The repository is atom/teletype on GitHub. What are the tag names of the 3 most recently published releases, newest
+    first?
+  answer_format: JSON array of three tag names
+  check: list
+  expected:
+  - v0.13.3
+  - v0.13.2
+  - v0.13.1
+- id: gh-most-commented-open
+  server: github
+  prompt: The repository is atom/teletype on GitHub. Which open issue (not a pull request) has the most comments? Return its
+    number.
+  answer_format: a single integer (issue number)
+  check: number
+  expected: 236
+- id: gh-recent-commit-author
+  server: github
+  prompt: The repository is atom/teletype on GitHub. Among the 10 most recent commits on the default branch, which GitHub
+    user (login) authored the most?
+  answer_format: a GitHub login
+  check: string
+  expected: darangi
+- id: gh-merged-prs
+  server: github
+  prompt: The repository is atom/teletype on GitHub. How many pull requests have been merged in total?
+  answer_format: a single integer
+  check: number
+  expected: 124
+- id: gh-pr-files
+  server: github
+  prompt: 'The repository is atom/teletype on GitHub. Which files did pull request #365 change? Return their paths.'
+  answer_format: JSON array of file paths
+  check: set
+  expected:
+  - lib/site-positions-component.js
+  - package.json
+  - styles/teletype.less
+  - test/site-positions-component.test.js
+- id: gh-enhancement-ux
+  server: github
+  prompt: The repository is atom/teletype on GitHub. How many open issues (not pull requests) have both the enhancement and
+    the ux labels?
+  answer_format: a single integer
+  check: number
+  expected: 1
+- id: gh-top-opener-2017
+  server: github
+  prompt: The repository is atom/teletype on GitHub. Which user opened the most issues (not pull requests) during 2017? Return
+    the login.
+  answer_format: a GitHub login
+  check: string
+  expected: jasonrudolph
+- id: gh-largest-changed-files
+  server: github
+  prompt: The repository is atom/teletype on GitHub. Across the 10 most recent commits on the default branch, find the three
+    files with the largest total changes (additions + deletions summed over those commits). Largest first.
+  answer_format: JSON array of three file paths
+  check: list
+  expected:
+  - test/editor-binding.test.js
+  - .travis.yml
+  - README.md
