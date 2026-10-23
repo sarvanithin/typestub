@@ -15,20 +15,47 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "!dist/.tsbuildinfo"
   ],
   "license": "MIT",
   "dependencies": {
-    "@typestub/infer": "*",
-    "@typestub/recorder": "*",
-    "@typestub/gen-ts": "*",
-    "@typestub/gen-py": "*",
-    "@typestub/shim": "*",
-    "@typestub/drift": "*",
+    "@typestub/infer": "^0.1.0",
+    "@typestub/recorder": "^0.1.0",
+    "@typestub/gen-ts": "^0.1.0",
+    "@typestub/gen-py": "^0.1.0",
+    "@typestub/shim": "^0.1.0",
+    "@typestub/drift": "^0.1.0",
     "commander": "^14.0.0",
     "yaml": "^2.9.1"
   },
   "bin": {
     "typestub": "dist/bin.js"
-  }
+  },
+  "description": "Typed interfaces for MCP tool outputs: record, infer, generate TypeScript/Python stubs for code-mode agents",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sarvanithin/typestub.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/sarvanithin/typestub#readme",
+  "bugs": {
+    "url": "https://github.com/sarvanithin/typestub/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "ai-agents",
+    "code-mode",
+    "typescript",
+    "codegen",
+    "type-inference",
+    "json-schema"
+  ]
 }

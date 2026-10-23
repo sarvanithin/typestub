@@ -19,5 +19,6 @@
   },
   "bin": {
     "typestub-messy-mock": "dist/bin.js"
-  }
+  },
+  "private": true
 }

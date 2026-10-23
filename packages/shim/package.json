@@ -11,11 +11,28 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "!dist/.tsbuildinfo"
   ],
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
-    "@typestub/infer": "*"
+    "@typestub/infer": "^0.1.0"
+  },
+  "description": "TypeStub shim package",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sarvanithin/typestub.git",
+    "directory": "packages/shim"
+  },
+  "homepage": "https://github.com/sarvanithin/typestub#readme",
+  "bugs": {
+    "url": "https://github.com/sarvanithin/typestub/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

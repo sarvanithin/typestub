@@ -11,11 +11,28 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "!dist/.tsbuildinfo"
   ],
   "license": "MIT",
   "dependencies": {
-    "@typestub/infer": "*",
-    "@typestub/shim": "*"
+    "@typestub/infer": "^0.1.0",
+    "@typestub/shim": "^0.1.0"
+  },
+  "description": "TypeStub drift package",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sarvanithin/typestub.git",
+    "directory": "packages/drift"
+  },
+  "homepage": "https://github.com/sarvanithin/typestub#readme",
+  "bugs": {
+    "url": "https://github.com/sarvanithin/typestub/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

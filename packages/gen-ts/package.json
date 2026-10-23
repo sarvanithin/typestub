@@ -11,10 +11,27 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "!dist/.tsbuildinfo"
   ],
   "license": "MIT",
   "dependencies": {
-    "@typestub/infer": "*"
+    "@typestub/infer": "^0.1.0"
+  },
+  "description": "TypeStub gen-ts package",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sarvanithin/typestub.git",
+    "directory": "packages/gen-ts"
+  },
+  "homepage": "https://github.com/sarvanithin/typestub#readme",
+  "bugs": {
+    "url": "https://github.com/sarvanithin/typestub/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

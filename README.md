@@ -1,5 +1,9 @@
 # TypeStub
 
+[![CI](https://github.com/sarvanithin/typestub/actions/workflows/ci.yml/badge.svg)](https://github.com/sarvanithin/typestub/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Node 22+](https://img.shields.io/badge/node-%E2%89%A522-brightgreen.svg)
+
 Typed interfaces for MCP tool **outputs**, so code-mode agents write the right script the first time instead
 of printing results to discover their shape.
 

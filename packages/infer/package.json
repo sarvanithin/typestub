@@ -11,8 +11,25 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "!dist/.tsbuildinfo"
   ],
   "license": "MIT",
-  "dependencies": {}
+  "dependencies": {},
+  "description": "TypeStub infer package",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sarvanithin/typestub.git",
+    "directory": "packages/infer"
+  },
+  "homepage": "https://github.com/sarvanithin/typestub#readme",
+  "bugs": {
+    "url": "https://github.com/sarvanithin/typestub/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
 }
