@@ -2,7 +2,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import ts from 'typescript';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { estimateTokens, generateTs } from '@typestub/gen-ts';
+import { estimateTokens, fieldDoc, generateTs } from '@typestub/gen-ts';
 import type { ServerSchema } from '@typestub/infer';
 import { mockSchema } from '../../../tests/helpers/mock-schema.js';
 
@@ -41,6 +41,11 @@ describe('generateTs', () => {
     expect(dts).toContain('listCustomers(args?: ListCustomersArgs): Promise<unknown>;');
     expect(dts).not.toContain('interface Customer ');
     expect(compiles(dts, root)).toEqual([]);
+  });
+
+  it('warns on fields that never varied', () => {
+    const doc = fieldDoc({ type: 'boolean', 'x-constant': { value: false, count: 40 } }, {});
+    expect(doc).toEqual(["always false in all 40 samples; don't filter on it alone"]);
   });
 
   it('writes a compact index', () => {

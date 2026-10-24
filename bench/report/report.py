@@ -11,6 +11,9 @@ from pathlib import Path
 import numpy as np
 
 BENCH = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(BENCH / "runners"))
+from pricing import PRICES, episode_cost  # noqa: E402
+
 RNG = np.random.default_rng(0)
 N_BOOT = 2000
 COND_NAMES = {"A": "A. direct tool calling", "B": "B. untyped code mode", "C": "C. typed code mode (TypeStub)", "L": "L. typed, loaded on demand"}
@@ -24,6 +27,18 @@ def by_task(eps):
     return out
 
 
+def billed_tokens(e) -> float:
+    """Episode cost in input-token equivalents: cache reads 0.1x, cache writes 1.25x, output at the output/input price ratio."""
+    return episode_cost(e["model"], e["usage"]) * 1e6 / PRICES.get(e["model"], (4.0, 20.0))[0]
+
+
+def first_fetch_ok(e) -> bool:
+    """The first script ran cleanly and fetched everything: later scripts made no tool calls, and the answer passed.
+    Unlike first_try, this does not penalise a separate turn that only submits an already computed answer."""
+    s = e["scripts"]
+    return bool(e["success"] and s and s[0]["error"] is None and all(x["tool_calls"] == 0 for x in s[1:]))
+
+
 def metric(eps, name):
     """Metrics over a list of episodes. Tokens per completed task = all tokens spent / successes."""
     if not eps:
@@ -35,6 +50,12 @@ def metric(eps, name):
         return np.mean(xs) if xs else float("nan")
     if name == "round_trips":
         return np.mean([e["round_trips"] for e in eps])
+    if name == "first_fetch":
+        xs = [first_fetch_ok(e) for e in eps if e["condition"] != "A"]
+        return np.mean(xs) if xs else float("nan")
+    if name == "billed_per_completed":
+        s = sum(e["success"] for e in eps)
+        return sum(billed_tokens(e) for e in eps) / s if s else float("nan")
     if name == "tokens_per_episode":
         return np.mean([e["total_tokens"] for e in eps])
     if name == "tokens_per_completed":
@@ -127,7 +148,7 @@ def chart(summary, out_dir: Path, model: str):
     return path.name
 
 
-METRICS = ["success", "first_try", "round_trips", "tokens_per_completed", "tokens_per_episode", "wall_s", "discovery", "script_errors"]
+METRICS = ["success", "first_try", "first_fetch", "round_trips", "tokens_per_completed", "billed_per_completed", "tokens_per_episode", "wall_s", "discovery", "script_errors"]
 
 
 def main(run_id: str) -> None:
@@ -138,6 +159,10 @@ def main(run_id: str) -> None:
     eps = [e for e in eps if not (e.get("error") or "").startswith("api:")]
     lines = [f"# TypeStub benchmark results: `{run_id}`", ""]
     lines.append(f"{len(eps)} episodes ({len(api_errors)} dropped for API errors). Values are point estimates with 95% bootstrap CIs over tasks.")
+    lines.append("Billed tokens weight each episode as it is billed, in input-token equivalents: cache reads 0.1x, cache writes 1.25x, "
+                 "output at the output/input price ratio. Raw tokens count cache reads at full weight, which overstates the cost of "
+                 "a stub that sits in the cached system prompt. First fetch right: the first script ran cleanly, later scripts made "
+                 "no tool calls, and the answer passed (a separate submit-only turn does not count against it).")
     lines.append("Sampling: model defaults (these models do not accept `temperature`), effort " + str(meta.get("effort", "?")) + ".")
     lines.append("")
     summary_all = {}
@@ -159,28 +184,30 @@ def main(run_id: str) -> None:
                 gc = by_task([e for e in se if e["condition"] == tc])
                 summary[server][f"{tc}_vs_B"] = {
                     "tokens_per_completed_rel": paired(gb, gc, lambda x: metric(x, "tokens_per_completed"), True),
+                    "billed_per_completed_rel": paired(gb, gc, lambda x: metric(x, "billed_per_completed"), True),
+                    "first_fetch_pts": paired(gb, gc, lambda x: metric(x, "first_fetch"), False),
                     "first_try_pts": paired(gb, gc, lambda x: metric(x, "first_try"), False),
                     "success_pts": paired(gb, gc, lambda x: metric(x, "success"), False),
                     "round_trips_diff": paired(gb, gc, lambda x: metric(x, "round_trips"), False),
                 }
         summary_all[model] = summary
         lines += [f"## {model}", ""]
-        lines.append("| server | condition | task success | first-try success | round trips | tokens / completed task | tokens / episode | non-submitting scripts | wall s |")
-        lines.append("|---|---|---|---|---|---|---|---|---|")
+        lines.append("| server | condition | task success | first-try success | first fetch right | round trips | tokens / completed task | billed tokens / completed task | tokens / episode | non-submitting scripts | wall s |")
+        lines.append("|---|---|---|---|---|---|---|---|---|---|---|")
         for server, conds in summary.items():
             for c in CONDS:
                 if c in conds:
                     m = conds[c]
-                    lines.append(f"| {server} | {c} | {fmt(m['success'], True)} | {fmt(m['first_try'], True)} | {fmt(m['round_trips'])} | "
-                                 f"{fmt(m['tokens_per_completed'])} | {fmt(m['tokens_per_episode'])} | {fmt(m['discovery'])} | {fmt(m['wall_s'])} |")
+                    lines.append(f"| {server} | {c} | {fmt(m['success'], True)} | {fmt(m['first_try'], True)} | {fmt(m['first_fetch'], True)} | {fmt(m['round_trips'])} | "
+                                 f"{fmt(m['tokens_per_completed'])} | {fmt(m['billed_per_completed'])} | {fmt(m['tokens_per_episode'])} | {fmt(m['discovery'])} | {fmt(m['wall_s'])} |")
         for tc, label in (("C", "Typed (C)"), ("L", "Typed on demand (L)")):
             if not any(f"{tc}_vs_B" in c for c in summary.values()):
                 continue
-            lines += ["", f"**{label} vs untyped (B) code mode**", "", "| server | tokens / completed task | first-try success | task success | round trips |", "|---|---|---|---|---|"]
+            lines += ["", f"**{label} vs untyped (B) code mode**", "", "| server | tokens / completed task | billed tokens / completed task | first-try success | first fetch right | task success | round trips |", "|---|---|---|---|---|---|---|"]
             for server, conds in summary.items():
                 d = conds.get(f"{tc}_vs_B")
                 if d:
-                    lines.append(f"| {server} | {fmt(d['tokens_per_completed_rel'], True)} | {fmt(d['first_try_pts'], True)} pts | "
+                    lines.append(f"| {server} | {fmt(d['tokens_per_completed_rel'], True)} | {fmt(d['billed_per_completed_rel'], True)} | {fmt(d['first_try_pts'], True)} pts | {fmt(d['first_fetch_pts'], True)} pts | "
                                  f"{fmt(d['success_pts'], True)} pts | {fmt(d['round_trips_diff'])} |")
         st = meta.get("stub_tokens", {}).get(model, {})
         if st:
@@ -194,6 +221,7 @@ def main(run_id: str) -> None:
             worst_overhead = max((v["typed_overhead"] for v in st.values()), default=float("nan"))
             crit = [
                 ("Cost", "tokens per completed task, C vs B", "≤ -30%", fmt(d["tokens_per_completed_rel"], True), d["tokens_per_completed_rel"][0] <= -0.30),
+                ("Cost (billed)", "billed tokens per completed task, C vs B", "≤ -30%", fmt(d["billed_per_completed_rel"], True), d["billed_per_completed_rel"][0] <= -0.30),
                 ("Reliability", "first-try execution success, C vs B", "≥ +20 pts", fmt(d["first_try_pts"], True), d["first_try_pts"][0] >= 0.20),
                 ("Speed", "round trips per task (C)", "≤ 1.5", fmt(c["round_trips"]), c["round_trips"][0] <= 1.5),
                 ("Quality", "task success, C vs B", "no drop", fmt(d["success_pts"], True), d["success_pts"][0] >= 0),

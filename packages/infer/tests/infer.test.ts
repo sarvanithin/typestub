@@ -104,6 +104,19 @@ describe('pattern rules', () => {
     expect(infer(vals).properties!.c.enum).toEqual(['dhl', 'ups', null]);
   });
 
+  it('flags booleans and token strings that never varied over 20+ observations', () => {
+    const vals = Array.from({ length: 24 }, (_, i) => ({ merged: false, kind: 'pr', draft: i % 2 === 0 }));
+    const s = infer(vals);
+    expect(s.properties!.merged['x-constant']).toEqual({ value: false, count: 24 });
+    expect(s.properties!.merged.type).toBe('boolean');
+    expect(s.properties!.kind['x-constant']).toEqual({ value: 'pr', count: 24 });
+    expect(s.properties!.draft['x-constant']).toBeUndefined();
+  });
+
+  it('does not flag constants from too few observations', () => {
+    expect(infer([{ merged: false }, { merged: false }]).properties!.merged['x-constant']).toBeUndefined();
+  });
+
   it('detects date, uuid, url, email formats', () => {
     const s = infer([
       { d: '2026-01-02T03:04:05Z', day: '2026-01-02', u: '123e4567-e89b-42d3-a456-426614174000', w: 'https://x.io/a', e: 'a@b.co' },

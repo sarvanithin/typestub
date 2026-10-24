@@ -139,7 +139,7 @@ bench/             tasks + ground truth, checkers, runners for conditions A/B/C/
 examples/          a typed script against the mock
 ```
 
-`npm test` runs 60 tests: unit tests, probe→infer accuracy, generated stubs type-checked with `tsc`,
+`npm test` runs 63 tests: unit tests, probe→infer accuracy, generated stubs type-checked with `tsc`,
 generated Python imported and its type hints resolved, and the CLI init + drift loop over stdio.
 
 ## Benchmark
@@ -234,18 +234,51 @@ condition). Episodes run rep-major, so every task has at least 3 reps. GitHub us
 | all | +9.3% [−5.3, 24.9] | 3.40 → **2.82** | 100% both |
 
 - Opus already writes efficient untyped scripts, so types cut round trips (−0.58 overall, CI excludes 0)
-  without cutting tokens. Each turn re-sends the stub, and that cost about cancels the saved turns.
+  without cutting raw tokens. Raw tokens overstate the re-sent stub's cost, though; see billed tokens below.
 - First-try success is 0% for both conditions because Opus never submits from its first script: in 92% of
   episodes the last turn is a bare `submit(x)` after printing the answer. That turn costs every code-mode
   condition one round trip. The benchmark's submit protocol, not the types, is the main thing keeping round
   trips above the doc's 1.5 target.
 
+### Billed tokens: re-scoring the same episodes with cache weights
+
+The runs use prompt caching, so after the first turn the system prompt (and the stub in it) is a cache read,
+billed at 0.1× input. "Tokens / completed task" above sums cache reads at full weight. That overcounts exactly
+the cost blamed for the GitHub and Opus results: the stub being re-sent every turn. Cache reads are 70–89% of all
+tokens in these runs. Below, the same episodes are re-scored with the weights the harness spend cap uses (cache
+reads 0.1×, cache writes 1.25×, output at the output/input price ratio), in input-token equivalents. No new API calls.
+
+| C vs B | raw tokens / completed task | **billed** tokens / completed task |
+|---|---|---|
+| Haiku, all servers (`v1-haiku`) | −10.5% [−22.9, 2.5] | **−26.8%** [−36.8, −16.8] |
+| Haiku, messy mock | −45.6% | **−57.6%** [−63.2, −51.0] |
+| Haiku, GitHub | +22.7% [5.3, 38.2] | **−5.0%** [−15.4, 4.4] |
+| Opus, all servers (`v1-opus`) | +9.3% [−4.7, 25.4] | **−15.7%** [−24.9, −5.4] |
+| Opus, messy mock | −6.6% | **−35.3%** [−44.8, −23.5] |
+| Opus, GitHub | +34.4% [3.3, 69.5] | +7.9% [−7.9, 27.0] |
+
+Priced as billed, typed stubs are cheaper overall for both models (CIs exclude 0). GitHub moves from a clear loss
+to roughly break-even: slightly cheaper on Haiku, not significantly dearer on Opus. The −30% target is still
+missed overall (−26.8% Haiku), and met on the messy mock for both models.
+
+**First fetch right.** First-try success can't separate B and C on Opus, because Opus never submits from its
+first script. A second metric, computed from the same logs, asks whether the first script ran cleanly and fetched
+everything: later scripts made no tool calls, and the answer passed. A submit-only turn doesn't count against it.
+C vs B: **+31.5 pts** on Haiku [20.0, 43.5] and **+20.6 pts** on Opus [6.3, 34.8], which meets the +20 pt
+reliability target on that definition. Both metrics are in every `report.md`.
+
+**Submit protocol for future runs.** The sandbox already took a script's return value as its answer, but the
+prompt only described `submit()` and warned against submitting early. The prompt now says to end the script with
+`return answer`. Runs before this change used the old prompt.
+
 ## Known limitations
 
 - Shapes that depend on the query (SQL result sets) can't be typed per tool. The SQLite server also returns
   Python `repr` text, which TypeStub types honestly as `string`.
-- Semantic traps are invisible to shape inference. For example, GitHub's list endpoint reports `merged: false`
-  for every PR, so only `merged_at` is reliable.
+- Semantic traps are mostly invisible to shape inference. One kind is now caught: a boolean or token string that
+  never varied over 20+ samples gets `x-constant`, and the stub says so (`always false in all 214 samples; don't
+  filter on it alone`). On the GitHub probe pool this flags `merged` on `list_pull_requests` (only `merged_at` is
+  reliable) and 6 other fields. The bench runs above predate the rule.
 - Large APIs make large stubs. The stub budget cut GitHub's from 5.6k to 2.3k extra tokens for 12 tools, but that
   is still above 1,500, and pruning further removes fields tasks need.
 - Redaction keeps lowercase tokens such as logins and ids, so enum detection still works. Review samples before

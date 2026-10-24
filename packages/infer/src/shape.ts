@@ -8,7 +8,7 @@ export interface Shape {
   nulls: number;
   str?: StrStats;
   num?: { count: number; nonInteger: number; example?: number };
-  bool?: { count: number };
+  bool?: { count: number; trues: number };
   obj?: ObjShape;
   arr?: ArrShape;
   /** Subtree below the depth cap: type unknown. */
@@ -79,7 +79,7 @@ export function shapeOf(value: unknown, depth = 0): Shape {
   } else if (typeof value === 'number') {
     s.num = { count: 1, nonInteger: Number.isInteger(value) ? 0 : 1, example: value };
   } else if (typeof value === 'boolean') {
-    s.bool = { count: 1 };
+    s.bool = { count: 1, trues: value ? 1 : 0 };
   } else if (Array.isArray(value)) {
     let items: Shape | null = null;
     for (const el of value) items = mergeShapes(items ?? emptyShape(), shapeOf(el, depth + 1));
@@ -124,7 +124,7 @@ export function mergeShapes(a: Shape, b: Shape): Shape {
       ? { count: a.num.count + b.num.count, nonInteger: a.num.nonInteger + b.num.nonInteger, example: a.num.example ?? b.num.example }
       : { ...b.num };
   }
-  if (b.bool) a.bool = { count: (a.bool?.count ?? 0) + b.bool.count };
+  if (b.bool) a.bool = { count: (a.bool?.count ?? 0) + b.bool.count, trues: (a.bool?.trues ?? 0) + b.bool.trues };
   if (b.arr) {
     if (!a.arr) a.arr = { count: 0, empty: 0, items: null };
     a.arr.count += b.arr.count;

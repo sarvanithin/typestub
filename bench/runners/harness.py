@@ -19,6 +19,7 @@ import anthropic
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "checkers"))
 from check import check  # noqa: E402
 from common import BENCH, STATE, launch, load_tasks, server_env, servers  # noqa: E402
+from pricing import episode_cost  # noqa: E402
 
 OUTPUT_CAP = 30000
 MAX_TURNS = {"A": 16, "B": 8, "C": 8, "L": 8}
@@ -30,12 +31,13 @@ else: the value is graded as-is. The task ends when you do."""
 CODE_SYSTEM = """You answer questions about data by writing TypeScript that runs in a sandbox with one API object.
 Run code with the `execute` tool. Inside a script:
 - `{ident}` is a global object; every method is async and calls the real service.
-- Call `submit(value)` with exactly the final answer in the requested format, and nothing else: the value is graded as-is.
-  The task ends as soon as a script calls submit, so never use submit to inspect data.
-- To look at data first, use console.log in a script that does not submit: you get back its console output
-  (truncated after {cap} characters) and any error, and can run another script.
+- End the script with `return answer` (or call `submit(answer)`), where the answer is exactly the final value in the
+  requested format and nothing else: it is graded as-is, and the task ends when a script returns a value or submits.
+- A script that returns nothing gives you back its console.log output (truncated after {cap} characters) and any error,
+  and you can run another script. Use that only when you must look at data before you can compute the answer.
 - Top-level await works. No imports, and no network or filesystem access besides `{ident}`.
-Prefer one script that fetches, computes and submits. A separate script only to print the answer before submitting it wastes a round trip.
+Prefer one script that fetches, computes and returns the answer. Printing an answer you have already computed and then
+returning it in a second script wastes a round trip: return it directly.
 
 API of `{ident}`:
 ```ts
@@ -118,7 +120,7 @@ def format_exec(r: dict) -> str:
     if r.get("error"):
         parts.append(f"error: {r['error']}")
     if not parts:
-        parts.append("(no output; the script did not call submit)")
+        parts.append("(no output; the script returned nothing)")
     return "\n".join(parts)
 
 
@@ -160,7 +162,7 @@ def run_episode(client, model: str, effort: str, task: dict, cond: str, bridge: 
             break
         uses = [b for b in resp.content if b.type == "tool_use"]
         if not uses:
-            messages.append({"role": "user", "content": "Use a tool to finish: " + ("call submit_answer." if cond == "A" else "run a script that calls submit().")})
+            messages.append({"role": "user", "content": "Use a tool to finish: " + ("call submit_answer." if cond == "A" else "run a script that returns the answer.")})
             continue
         results = []
         for tu in uses:
@@ -325,16 +327,6 @@ def main() -> None:
     print(f"spent ${spend['usd']:.2f} on {n} episodes", file=sys.stderr)
     for b in all_bridges:
         b.close()
-
-
-# USD per million tokens (input, output); cache reads bill at 0.1x input, cache writes at 1.25x.
-PRICES = {"claude-opus-5-5": (4.0, 20.0), "claude-haiku-5-5": (0.10, 0.50)}
-
-
-def episode_cost(model: str, usage: dict) -> float:
-    inp, out = PRICES.get(model, (4.0, 20.0))
-    return (usage.get("input", 0) * inp + usage.get("output", 0) * out
-            + usage.get("cache_read", 0) * inp * 0.1 + usage.get("cache_write", 0) * inp * 1.25) / 1e6
 
 
 if __name__ == "__main__":

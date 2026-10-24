@@ -156,13 +156,14 @@ class PyRegistry {
   }
 }
 
-/** Presence and null rates only, e.g. `84%`. */
+/** Presence and null rates plus constant values, e.g. `84%`. */
 function compactDoc(s: JsonSchema): string[] {
   const out: string[] = [];
   const presence = s['x-presence'];
   if (presence !== undefined && presence < 1) out.push(`${Math.round(presence * 100)}%`);
   const nullRate = s['x-nullRate'];
   if (nullRate !== undefined && nullRate > 0 && nullRate < 1) out.push(`null ${Math.round(nullRate * 100)}%`);
+  if (s['x-constant']) out.push(`always ${JSON.stringify(s['x-constant'].value)}`);
   if (s['x-jsonString']) out.push('JSON string, parsed by the runtime');
   return out;
 }

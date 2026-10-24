@@ -26,7 +26,7 @@ export const COMPACT_LEGEND =
 const IDENT = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 export const propKey = (k: string) => (IDENT.test(k) ? k : JSON.stringify(k));
 
-const ANNOTATION_KEYS = new Set(['x-presence', 'x-nullRate', 'x-examples', 'description', 'x-inferred', 'x-id']);
+const ANNOTATION_KEYS = new Set(['x-presence', 'x-nullRate', 'x-examples', 'x-constant', 'description', 'x-inferred', 'x-id']);
 
 /** Structural identity of a schema, ignoring per-tool annotations. */
 export function structuralHash(s: JsonSchema): string {
@@ -53,6 +53,8 @@ export function fieldDoc(s: JsonSchema, opts: EmitOptions): string[] {
   if (presence !== undefined && presence < 1) parts.push(`present in ${Math.round(presence * 100)}%`);
   const nullRate = s['x-nullRate'];
   if (nullRate !== undefined && nullRate > 0) parts.push(`null in ${Math.round(nullRate * 100)}%`);
+  const constant = s['x-constant'];
+  if (constant) parts.push(`always ${JSON.stringify(constant.value)} in all ${constant.count} samples; don't filter on it alone`);
   if (s['x-emptyOnly']) parts.push('only ever seen empty; item type unknown');
   if (s['x-jsonString']) parts.push('sent as a JSON string; the runtime parses it for you');
   if (s['x-truncated']) parts.push('deeply nested or very wide; not typed further');
@@ -71,6 +73,7 @@ export function compactDoc(s: JsonSchema): string {
   if (presence !== undefined && presence < 1) parts.push(`${Math.round(presence * 100)}%`);
   const nullRate = s['x-nullRate'];
   if (nullRate !== undefined && nullRate > 0 && nullRate < 1) parts.push(`null ${Math.round(nullRate * 100)}%`);
+  if (s['x-constant']) parts.push(`always ${JSON.stringify(s['x-constant'].value)}`);
   if (s['x-jsonString']) parts.push('JSON string, parsed by the runtime');
   return parts.length ? `/*${parts.join(', ')}*/ ` : '';
 }

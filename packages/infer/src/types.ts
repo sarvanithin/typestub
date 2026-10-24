@@ -22,6 +22,8 @@ export interface JsonSchema {
   /** Fraction of observations of this field that were null (0-1). */
   'x-nullRate'?: number;
   'x-examples'?: unknown[];
+  /** Every non-null observation had this one value (e.g. a flag that was never true). */
+  'x-constant'?: { value: string | boolean; count: number };
   /** Array only ever observed empty: item type unknown. */
   'x-emptyOnly'?: true;
   /** Object treated as an id-keyed map (Record<string, T>). */

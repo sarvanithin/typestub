@@ -88,11 +88,30 @@ function convert(s: Shape, ctx: Ctx, topLevel = false, fieldName?: string): Json
   // Every non-null observation was a JSON string: describe the parsed value and let the shim decode it.
   if (s.jsonStr && s.jsonStr === s.count - s.nulls) out['x-jsonString'] = true;
   if (nullable) out = addNull(out);
+  const constant = constantOf(s);
+  if (constant && !out.enum) out['x-constant'] = constant;
   if (ctx.examples) {
     if (s.str?.example !== undefined && !out.enum) out['x-examples'] = [s.str.example];
     else if (s.num?.example !== undefined) out['x-examples'] = [s.num.example];
   }
   return out;
+}
+
+/**
+ * A boolean or token-like string that never varied over ENUM_MIN_OBSERVATIONS+ observations. The
+ * type stays wide (other values may exist), but the stub warns that filtering on it found nothing.
+ */
+function constantOf(s: Shape): JsonSchema['x-constant'] {
+  const kinds = kindsOf(s);
+  if (kinds.length !== 1) return undefined;
+  if (s.bool && s.bool.count >= ENUM_MIN_OBSERVATIONS && (s.bool.trues === 0 || s.bool.trues === s.bool.count)) {
+    return { value: s.bool.trues > 0, count: s.bool.count };
+  }
+  const st = s.str;
+  if (st && st.count >= ENUM_MIN_OBSERVATIONS && st.values.size === 1 && enumCandidate(st)) {
+    return { value: [...st.values.keys()][0], count: st.count };
+  }
+  return undefined;
 }
 
 function addNull(s: JsonSchema): JsonSchema {
